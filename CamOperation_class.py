@@ -13,7 +13,6 @@ from ctypes import *
 import cv2
 from PIL import Image
 import copy
-import pickle
 
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
@@ -145,43 +144,6 @@ class CameraOperation:
         self.currentImg = None
         self.processedTime = -1
 
-        # Calibration parameters
-        self.calibration_images = []
-        self.calibration_path = "calibration_images"
-        self.calibration_file = "calibration_data.pkl"
-        self.camera_matrix = None
-        self.dist_coeffs = None
-        self.calibration_size = (9, 6)  # Size of the calibration pattern
-        self.square_size = 25.0  # Size of each square in mm
-        
-        # Create calibration directory if it doesn't exist
-        if not os.path.exists(self.calibration_path):
-            os.makedirs(self.calibration_path)
-
-        # Load camera calibration data
-        if not os.path.exists(self.calibration_file):
-            print(f"Error: Calibration file not found at {self.calibration_file}")
-            print("Please run camera_calibration.py first to generate calibration data.")
-        else:
-            # Load calibration data
-            with open(self.calibration_file, 'rb') as f:
-                calibration_data = pickle.load(f)
-            
-            self.camera_matrix = calibration_data['camera_matrix']
-            self.dist_coeffs = calibration_data['distortion_coefficients']
-            
-            print("Loaded camera calibration data:")
-            print(f"Camera Matrix:\n{self.camera_matrix}")
-            print(f"Distortion Coefficients: {self.dist_coeffs.ravel()}")
-            
-            # Calculate optimal camera matrix and undistortion maps
-            # These will be calculated when we get the actual camera resolution
-            self.newcameramtx = None
-            self.roi = None
-            self.mapx = None
-            self.mapy = None
-            self.correct_distortion = True
-
     def Open_device(self):
         if not self.b_open_device:
             if self.n_connect_num < 0:
@@ -203,33 +165,6 @@ class CameraOperation:
             print("open device successfully!")
             self.b_open_device = True
             self.b_thread_closed = False
-
-            # Calculate undistortion maps if calibration data is available
-            if self.camera_matrix is not None and self.dist_coeffs is not None:
-                # Get camera resolution
-                stIntValue = MVCC_INTVALUE()
-                memset(byref(stIntValue), 0, sizeof(MVCC_INTVALUE))
-                ret = self.obj_cam.MV_CC_GetIntValue("Width", stIntValue)
-                if ret != 0:
-                    print("get width fail! ret[0x%x]" % ret)
-                    return ret
-                width = stIntValue.nCurValue
-
-                ret = self.obj_cam.MV_CC_GetIntValue("Height", stIntValue)
-                if ret != 0:
-                    print("get height fail! ret[0x%x]" % ret)
-                    return ret
-                height = stIntValue.nCurValue
-
-                print(f"Camera resolution: {width}x{height}")
-
-                # Calculate optimal camera matrix
-                self.newcameramtx, self.roi = cv2.getOptimalNewCameraMatrix(
-                    self.camera_matrix, self.dist_coeffs, (width, height), 1, (width, height))
-
-                # Create undistortion maps
-                self.mapx, self.mapy = cv2.initUndistortRectifyMap(
-                    self.camera_matrix, self.dist_coeffs, None, self.newcameramtx, (width, height), 5)
 
             # ch:探测网络最佳包大小(只对GigE相机有效) | en:Detection network optimal package size(It only works for the GigE camera)
             if stDeviceList.nTLayerType == MV_GIGE_DEVICE or stDeviceList.nTLayerType == MV_GENTL_GIGE_DEVICE:
@@ -467,16 +402,10 @@ class CameraOperation:
  
             #合并OpenCV到Tkinter界面中
             current_image = Image.frombuffer(mode, (self.st_frame_info.nWidth,self.st_frame_info.nHeight), numArray.astype('uint8'))
-            
-            # numArray = cv2.cvtColor(numArray, cv2.COLOR_BGR2RGB)
+            numArray = cv2.cvtColor(numArray, cv2.COLOR_BGR2RGB)
 
-            # Apply undistortion if calibration data is available and correction is enabled
-            if self.correct_distortion and self.mapx is not None and self.mapy is not None:
-                numArray = cv2.remap(numArray, self.mapx, self.mapy, cv2.INTER_LINEAR)
-            numArray = cv2.resize(numArray, (1280, 960))
             start_time = time.time()
-
-            procImg = self.monitor.process(numArray)
+            procImg = self.monitor.Detect(numArray)
             end_time = time.time()
             self.processedTime = float(end_time - start_time)
 
@@ -556,5 +485,3 @@ class CameraOperation:
             fps_label.setText(f"{self.processedTime:.4f}")
         else:
             fps_label.setText("0.00")
-
-    
