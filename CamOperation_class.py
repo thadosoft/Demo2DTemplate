@@ -402,14 +402,13 @@ class CameraOperation:
  
             #合并OpenCV到Tkinter界面中
             current_image = Image.frombuffer(mode, (self.st_frame_info.nWidth,self.st_frame_info.nHeight), numArray.astype('uint8'))
-            numArray = cv2.cvtColor(numArray, cv2.COLOR_BGR2RGB)
+            # numArray = cv2.cvtColor(numArray, cv2.COLOR_BGR2RGB)
+            self.currentImg = current_image
 
             start_time = time.time()
-            procImg = self.monitor.Detect(numArray)
+            procImg = self.monitor.Detect(current_image)
             end_time = time.time()
             self.processedTime = float(end_time - start_time)
-
-            self.showImage(widgets['raw'], procImg)
 
 
             if self.b_exit:
@@ -471,12 +470,16 @@ class CameraOperation:
         return ret
 
     def showImage(self, widget, img):
+        if img is None:
+            return
         widgetHeight = widget.height()
         widgetWidth = widget.width()
 
-        img = cv2.resize(img, (widgetWidth, widgetHeight))
-
-        qimage = QtGui.QImage(img.data, img.shape[1], img.shape[0], img.shape[1] * 3, QtGui.QImage.Format_RGB888)
+        img_np = np.array(img)
+        
+        img_np = cv2.resize(img_np, (widgetWidth, widgetHeight))
+        
+        qimage = QtGui.QImage(img_np.data, img_np.shape[1], img_np.shape[0], img_np.shape[1] * 3, QtGui.QImage.Format_RGB888)
         pixmap = QtGui.QPixmap.fromImage(qimage)
         widget.setPixmap(pixmap)
 

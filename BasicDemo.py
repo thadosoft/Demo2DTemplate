@@ -338,7 +338,9 @@ if __name__ == "__main__":
         global obj_cam_operation
         try:
             obj_cam_operation.update_time(ui.procTime)
+            obj_cam_operation.showImage(ui.raw, obj_cam_operation.currentImg)
         except Exception as e:
+            print(e)
             pass
 
     app = QApplication(sys.argv)
